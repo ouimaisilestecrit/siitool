@@ -45,7 +45,7 @@ static uint16_t sii_cat_write_dc(struct _sii_cat *cat, unsigned char *buf);
 #if DEBUG == 1
 static uint16_t sii_cat_write_cat(struct _sii_cat *cat, unsigned char *buf);
 #endif
-static size_t sii_cat_write(struct _sii *sii);
+static size_t sii_cat_write(struct _sii *sii, uint16_t skip_mask);
 static void sii_write(SiiInfo *sii);
 
 static int read_eeprom(FILE *f, unsigned char *buffer, size_t size)
@@ -1658,7 +1658,10 @@ static uint16_t sii_cat_write_cat(struct _sii_cat *cat, unsigned char *buf)
 }
 #endif
 
-static size_t sii_cat_write(struct _sii *sii)
+#define SKIP_TXPDO    0x0010
+#define SKIP_RXPDO    0x0020
+
+static size_t sii_cat_write(struct _sii *sii, uint16_t skipmask)
 {
 	unsigned char *buf = sii->rawbytes+sii->rawsize;
 	//size_t *bufsize = &sii->rawsize;
@@ -1702,7 +1705,13 @@ static size_t sii_cat_write(struct _sii *sii)
 
 		case SII_CAT_TXPDO:
 		case SII_CAT_RXPDO:
-			catsize = sii_cat_write_pdo(cat, buf);
+			if (skipmask & (SKIP_TXPDO | SKIP_RXPDO)) {
+				buf -= 4;
+				cat = cat->next;
+				continue;
+			} else {
+				catsize = sii_cat_write_pdo(cat, buf);
+			}
 			break;
 
 		case SII_CAT_DCLOCK:
@@ -1936,7 +1945,7 @@ static void sii_write(SiiInfo *sii)
 
 	// - iterate through categories
 
-	size_t sz = sii_cat_write(sii);
+	size_t sz = sii_cat_write(sii, SKIP_TXPDO | SKIP_RXPDO);
 	outbuf += sz;
 	sii->rawsize += sz;
 
