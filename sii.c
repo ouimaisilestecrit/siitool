@@ -46,7 +46,7 @@ static uint16_t sii_cat_write_dc(struct _sii_cat *cat, unsigned char *buf);
 static uint16_t sii_cat_write_cat(struct _sii_cat *cat, unsigned char *buf);
 #endif
 static size_t sii_cat_write(struct _sii *sii, uint16_t skip_mask);
-static void sii_write(SiiInfo *sii);
+static void sii_write(SiiInfo *sii, unsigned int no_pdo_mapping);
 
 static int read_eeprom(FILE *f, unsigned char *buffer, size_t size)
 {
@@ -1775,10 +1775,15 @@ static struct _sii_cat *sii_cat_get_min(struct _sii_cat *head)
 	return min;
 }
 
-static void sii_write(SiiInfo *sii)
+static void sii_write(SiiInfo *sii, unsigned int no_pdo_mapping)
 {
 	unsigned char *outbuf = sii->rawbytes;
 	uint8_t crc = 0xff;
+    uint16_t skip_mask = 0;
+	if (no_pdo_mapping) {
+		skip_mask = SKIP_TXPDO | SKIP_RXPDO;
+	}
+
 
 	// - write preamble
 	struct _sii_preamble *pre = sii->preamble;
@@ -1945,7 +1950,7 @@ static void sii_write(SiiInfo *sii)
 
 	// - iterate through categories
 
-	size_t sz = sii_cat_write(sii, SKIP_TXPDO | SKIP_RXPDO);
+	size_t sz = sii_cat_write(sii, skip_mask);
 	outbuf += sz;
 	sii->rawsize += sz;
 
@@ -2018,13 +2023,13 @@ void sii_release(SiiInfo *sii)
 	free(sii);
 }
 
-size_t sii_generate(SiiInfo *sii)
+size_t sii_generate(SiiInfo *sii, unsigned int no_pdo_mapping)
 {
 	size_t maxsize = EE_TO_BYTES(sii->config->eeprom_size);
 	sii->rawbytes = (uint8_t*) calloc(1, maxsize);
 	sii->rawsize = 0;
 
-	sii_write(sii);
+	sii_write(sii, no_pdo_mapping);
 	sii->rawvalid = 1; /* FIXME valid should be set in sii_write */
 
 	return sii->rawsize;
